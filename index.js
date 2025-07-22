@@ -2,80 +2,121 @@ const Fastify = require("fastify");
 const cors = require("@fastify/cors");
 const WebSocket = require("ws");
 const fs = require("fs");
+const path = require("path");
 
-const TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJnZW5kZXIiOjAsImNhblZpZXdTdGF0IjpmYWxzZSwiZGlzcGxheU5hbWUiOiJ0cmFudGhhbmhiaW5ocG0iLCJib3QiOjAsImlzTWVyY2hhbnQiOmZhbHNlLCJ2ZXJpZmllZEJhbmtBY2NvdW50Ijp0cnVlLCJwbGF5RXZlbnRMb2JieSI6ZmFsc2UsImN1c3RvbWVySWQiOjI0MzE2NTExMSwiYWZmSWQiOiI1ZTIyMjYwYS05MTA5LTQ2ZjgtOWUxNS05NWYxOGYyYzFiNGYiLCJiYW5uZWQiOmZhbHNlLCJicmFuZCI6InN1bi53aW4iLCJ0aW1lc3RhbXAiOjE3NTMyMDY1MTk5MDksImxvY2tHYW1lcyI6W10sImFtb3VudCI6MCwibG9ja0NoYXQiOmZhbHNlLCJwaG9uZVZlcmlmaWVkIjpmYWxzZSwiaXBBZGRyZXNzIjoiMmEwOTpiYWM1OmQ0NmM6MTZkYzo6MjQ3OmM0IiwibXV0ZSI6ZmFsc2UsImF2YXRhciI6Imh0dHBzOi8vaW1hZ2VzLnN3aW5zaG9wLm5ldC9pbWFnZXMvYXZhdGFyL2F2YXRhcl8wMi5wbmciLCJwbGF0Zm9ybUlkIjoyLCJ1c2VySWQiOiI1ZTIyMjYwYS05MTA5LTQ2ZjgtOWUxNS05NWYxOGYyYzFiNGYiLCJyZWdUaW1lIjoxNzQ2MDg1Nzg0NDU3LCJwaG9uZSI6IiIsImRlcG9zaXQiOnRydWUsInVzZXJuYW1lIjoiU0NfdGhhbmhiaW5oc2IifQ.Ecb2NkdlLXuB0MhjeqYyZj95JeDRaKbVwp_m9Qc6Js0";
+const TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJnZW5kZXIiOjAsImNhblZpZXdTdGF0IjpmYWxzZSwiZGlzcGxheU5hbWUiOiJ0YW9sYXRvcDFzdiIsImJvdCI6MCwiaXNNZXJjaGFudCI6ZmFsc2UsInZlcmlmaWVkQmFua0FjY291bnQiOmZhbHNlLCJwbGF5RXZlbnRMb2JieSI6ZmFsc2UsImN1c3RvbWVySWQiOjI5MjI0MDM4NiwiYWZmSWQiOiJhMTE3YzY5MC1lOGY0LTQ5ZTUtOTUwYS00NmRkZWRlMDY1NDIiLCJiYW5uZWQiOmZhbHNlLCJicmFuZCI6InN1bi53aW4iLCJ0aW1lc3RhbXAiOjE3NTMyMTM1NzYxOTAsImxvY2tHYW1lcyI6W10sImFtb3VudCI6MCwibG9ja0NoYXQiOmZhbHNlLCJwaG9uZVZlcmlmaWVkIjpmYWxzZSwiaXBBZGRyZXNzIjoiMjAwMTplZTA6NTcwODo3NzAwOmVjMzI6ZjEzOTozYjM5OjI0N2UiLCJtdXRlIjpmYWxzZSwiYXZhdGFyIjoiaHR0cHM6Ly9pbWFnZXMuc3dpbnNob3AubmV0L2ltYWdlcy9hdmF0YXIvYXZhdGFyXzE0LnBuZyIsInBsYXRmb3JtSWQiOjUsInVzZXJJZCI6ImExMTdjNjkwLWU4ZjQtNDllNS05NTBhLTQ2ZGRlZGUwNjU0MiIsInJlZ1RpbWUiOjE3NTMyMTM0ODM2NTksInBob25lIjoiIiwiZGVwb3NpdCI6ZmFsc2UsInVzZXJuYW1lIjoiU0Nfc3Vud2lubG92YyJ9.EXtO9YTbtQqUmHklVUG8UDUC4aPY6ot9ghfdDKZD2ek";
 
-const fastify = Fastify();
-const PORT = 2010;
+const fastify = Fastify({ logger: false });
+const PORT = process.env.PORT || 3001;
+const HISTORY_FILE = path.join(__dirname, 'taixiu_history.json');
 
 let rikResults = [];
 let rikCurrentSession = null;
 let rikWS = null;
 let rikIntervalCmd = null;
 
-const HISTORY_FILE = "history.json";
-
-// Tải lại dữ liệu cũ nếu có
-if (fs.existsSync(HISTORY_FILE)) {
+function loadHistory() {
   try {
-    rikResults = JSON.parse(fs.readFileSync(HISTORY_FILE));
-    rikCurrentSession = rikResults[0]?.sid || null;
-  } catch (e) {
-    rikResults = [];
+    if (fs.existsSync(HISTORY_FILE)) {
+      rikResults = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
+      console.log(`📚 Loaded ${rikResults.length} history records`);
+    }
+  } catch (err) {
+    console.error('Error loading history:', err);
   }
 }
 
 function saveHistory() {
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(rikResults.slice(0, 100), null, 2));
+  try {
+    fs.writeFileSync(HISTORY_FILE, JSON.stringify(rikResults), 'utf8');
+  } catch (err) {
+    console.error('Error saving history:', err);
+  }
 }
 
-// --- Hàm decode binary, getTX, predictNextResult tương tự như bạn gửi ---
 function decodeBinaryMessage(buffer) {
   try {
     const str = buffer.toString();
     if (str.startsWith("[")) return JSON.parse(str);
-    let position = 0;
-    const result = [];
+    let position = 0, result = [];
     while (position < buffer.length) {
       const type = buffer.readUInt8(position++);
       if (type === 1) {
-        const length = buffer.readUInt16BE(position); position += 2;
-        result.push(buffer.toString('utf8', position, position + length)); position += length;
+        const len = buffer.readUInt16BE(position); position += 2;
+        result.push(buffer.toString('utf8', position, position + len));
+        position += len;
       } else if (type === 2) {
         result.push(buffer.readInt32BE(position)); position += 4;
       } else if (type === 3 || type === 4) {
-        const length = buffer.readUInt16BE(position); position += 2;
-        result.push(JSON.parse(buffer.toString('utf8', position, position + length))); position += length;
-      } else break;
+        const len = buffer.readUInt16BE(position); position += 2;
+        result.push(JSON.parse(buffer.toString('utf8', position, position + len)));
+        position += len;
+      } else {
+        console.warn("Unknown binary type:", type); break;
+      }
     }
     return result.length === 1 ? result[0] : result;
-  } catch {
+  } catch (e) {
+    console.error("Binary decode error:", e);
     return null;
   }
 }
 
 function getTX(d1, d2, d3) {
-  const sum = d1 + d2 + d3;
-  return sum >= 11 ? "T" : "X";
+  return d1 + d2 + d3 >= 11 ? "T" : "X";
 }
 
-function predictNextResult(history) {
+function analyzePatterns(history) {
   if (history.length < 5) return null;
-  const lastResults = history.slice(0, 5).map(item => getTX(item.d1, item.d2, item.d3));
-  const countT = lastResults.filter(r => r === 'T').length;
-  const countX = lastResults.filter(r => r === 'X').length;
-  if (countT >= 4) return 'X';
-  if (countX >= 4) return 'T';
-  const lastSums = history.slice(0, 5).map(item => item.d1 + item.d2 + item.d3);
-  const avgSum = lastSums.reduce((a, b) => a + b, 0) / 5;
-  if (avgSum > 11.5) return 'X';
-  if (avgSum < 10.5) return 'T';
-  let isAlt = true;
-  for (let i = 1; i < lastResults.length; i++) {
-    if (lastResults[i] === lastResults[i - 1]) { isAlt = false; break; }
+  const patternHistory = history.slice(0, 30).map(item => getTX(item.d1, item.d2, item.d3)).join('');
+  const knownPatterns = {
+    'ttxtttttxtxtxttxtxtxtxtxtxxttxt': 'Pattern thường xuất hiện sau chuỗi Tài-Tài-Xỉu-Tài...',
+    'ttttxxxx': '4 Tài liên tiếp thường đi kèm 4 Xỉu',
+    'xtxtxtxt': 'Xen kẽ Tài Xỉu ổn định',
+    'ttxxttxxttxx': 'Chu kỳ 2 Tài 2 Xỉu'
+  };
+  for (const [pattern, description] of Object.entries(knownPatterns)) {
+    if (patternHistory.includes(pattern)) {
+      return {
+        pattern, description,
+        confidence: Math.floor(Math.random() * 20) + 80
+      };
+    }
   }
-  if (isAlt) return lastResults.at(-1) === 'T' ? 'X' : 'T';
-  return Math.random() > 0.5 ? 'T' : 'X';
+  return null;
+}
+
+function predictNext(history) {
+  if (history.length < 4) return history.at(-1) || "Tài";
+  const last = history.at(-1);
+
+  if (history.slice(-4).every(k => k === last)) return last;
+
+  if (history.length >= 4 &&
+    history.at(-1) === history.at(-2) &&
+    history.at(-3) === history.at(-4) &&
+    history.at(-1) !== history.at(-3)) {
+    return last === "Tài" ? "Xỉu" : "Tài";
+  }
+
+  const last4 = history.slice(-4);
+  if (last4[0] !== last4[1] && last4[1] === last4[2] && last4[2] !== last4[3]) {
+    return last === "Tài" ? "Xỉu" : "Tài";
+  }
+
+  const pattern = history.slice(-6, -3).toString();
+  const latest = history.slice(-3).toString();
+  if (pattern === latest) return history.at(-1);
+
+  if (new Set(history.slice(-3)).size === 3) {
+    return Math.random() < 0.5 ? "Tài" : "Xỉu";
+  }
+
+  const count = history.reduce((acc, val) => {
+    acc[val] = (acc[val] || 0) + 1;
+    return acc;
+  }, {});
+  return (count["Tài"] || 0) > (count["Xỉu"] || 0) ? "Xỉu" : "Tài";
 }
 
 function sendRikCmd1005() {
@@ -85,25 +126,31 @@ function sendRikCmd1005() {
 }
 
 function connectRikWebSocket() {
-  console.log("🔌 Đang kết nối tới SunWin WebSocket...");
+  console.log("🔌 Connecting to SunWin WebSocket...");
   rikWS = new WebSocket(`wss://websocket.azhkthg1.net/websocket?token=${TOKEN}`);
 
   rikWS.on("open", () => {
-    rikWS.send(JSON.stringify([
-      1, "MiniGame", "SC_thanhbinhsb", "binhthanhsb",
+    const authPayload = [
+      1,
+      "MiniGame",
+      "SC_sunwinlovc",
+      "taolatrum",
       {
         info: JSON.stringify({
-          ipAddress: "2a09:bac5:d46c:16dc::247:c4",
+          ipAddress: "2001:ee0:5708:7700:ec32:f139:3b39:247e",
           wsToken: TOKEN,
-          userId: "5e22260a-9109-46f8-9e15-95f18f2c1b4f",
-          username: "5e22260a-9109-46f8-9e15-95f18f2c1b4f",
-          timestamp: Date.now()
+          locale: "vi",
+          userId: "a117c690-e8f4-49e5-950a-46ddede06542",
+          username: "SC_sunwinlovc",
+          timestamp: 1753213576190,
+          refreshToken: "430500baa6c8436d9a0d5cef4e2a0297.c87b018b1daf44cb94685efc5b87ef54"
         }),
-        signature: "signature_string_here",
+        signature: "0980B3E0AFCEB12D7CD1E1861C975E937719C32B8C3B8C55D2FF0E0493D70ABAEB2E48D182B70CEC51024D8CB80CB2A1F714EEF23DE5D062B5B38458BF5E97D5CA34CCC0EFDB61234A525396A7AF86409ACB920E8ACDA3A0FE34D4A3976221DFC31FEA522834D57FB6EB02DD1810E60E1ECDD69304D06D56087D830B80471DE0",
         pid: 5,
         subi: true
       }
-    ]));
+    ];
+    rikWS.send(JSON.stringify(authPayload));
     clearInterval(rikIntervalCmd);
     rikIntervalCmd = setInterval(sendRikCmd1005, 5000);
   });
@@ -112,52 +159,60 @@ function connectRikWebSocket() {
     try {
       const json = typeof data === 'string' ? JSON.parse(data) : decodeBinaryMessage(data);
       if (!json) return;
+
       if (Array.isArray(json) && json[3]?.res?.d1) {
-        const result = json[3].res;
-        if (!rikCurrentSession || result.sid > rikCurrentSession) {
-          rikCurrentSession = result.sid;
-          rikResults.unshift({ sid: result.sid, d1: result.d1, d2: result.d2, d3: result.d3 });
+        const res = json[3].res;
+        if (!rikCurrentSession || res.sid > rikCurrentSession) {
+          rikCurrentSession = res.sid;
+          rikResults.unshift({ sid: res.sid, d1: res.d1, d2: res.d2, d3: res.d3, timestamp: Date.now() });
           if (rikResults.length > 100) rikResults.pop();
           saveHistory();
-          console.log(`📥 Phiên mới ${result.sid} → ${getTX(result.d1, result.d2, result.d3)}`);
-          setTimeout(() => rikWS.close(), 1000);
+          console.log(`📥 Phiên mới ${res.sid} → ${getTX(res.d1, res.d2, res.d3)}`);
+          setTimeout(() => { rikWS?.close(); connectRikWebSocket(); }, 1000);
         }
       } else if (Array.isArray(json) && json[1]?.htr) {
-        rikResults = json[1].htr
-          .map(i => ({ sid: i.sid, d1: i.d1, d2: i.d2, d3: i.d3 }))
-          .sort((a, b) => b.sid - a.sid)
-          .slice(0, 100);
-        rikCurrentSession = rikResults[0]?.sid;
+        rikResults = json[1].htr.map(i => ({
+          sid: i.sid, d1: i.d1, d2: i.d2, d3: i.d3, timestamp: Date.now()
+        })).sort((a, b) => b.sid - a.sid).slice(0, 100);
         saveHistory();
-        console.log("📦 Đã tải lịch sử.");
+        console.log("📦 Đã tải lịch sử các phiên gần nhất.");
       }
     } catch (e) {
-      console.error("❌ Lỗi parse:", e.message);
+      console.error("❌ Parse error:", e.message);
     }
   });
 
   rikWS.on("close", () => {
-    console.log("🔌 WS disconnected. Reconnect 5s...");
+    console.log("🔌 WebSocket disconnected. Reconnecting...");
     setTimeout(connectRikWebSocket, 5000);
   });
 
   rikWS.on("error", (err) => {
-    console.error("WS Error:", err.message);
+    console.error("🔌 WebSocket error:", err.message);
     rikWS.close();
   });
 }
 
+loadHistory();
 connectRikWebSocket();
-
 fastify.register(cors);
 
 fastify.get("/api/taixiu/sunwin", async () => {
-  const current = rikResults[0];
-  if (!current) return { message: "Không có dữ liệu." };
+  const valid = rikResults.filter(r => r.d1 && r.d2 && r.d3);
+  if (!valid.length) return { message: "Không có dữ liệu." };
+
+  const current = valid[0];
   const sum = current.d1 + current.d2 + current.d3;
-  const ket_qua = getTX(current.d1, current.d2, current.d3);
-  const du_doan = predictNextResult(rikResults);
-  const ty_le_thanh_cong = Math.floor(Math.random() * 30) + 70;
+  const ket_qua = sum >= 11 ? "Tài" : "Xỉu";
+
+  const recentTX = valid.map(r => getTX(r.d1, r.d2, r.d3)).slice(0, 30);
+  const predText = predictNext(recentTX);
+  const prediction = {
+    prediction: predText === "Tài" ? "T" : "X",
+    reason: "Dự đoán theo mẫu cầu nâng cao",
+    confidence: 80
+  };
+
   return {
     id: "binhtool90",
     phien: current.sid,
@@ -166,18 +221,32 @@ fastify.get("/api/taixiu/sunwin", async () => {
     xuc_xac_3: current.d3,
     tong: sum,
     ket_qua,
-    du_doan: du_doan === "T" ? "Tài" : "Xỉu",
-    pattern_sunwin: rikResults.slice(0, 10).map(i => getTX(i.d1, i.d2, i.d3).toLowerCase()).join(""),
-    ty_le_thanh_cong: `${ty_le_thanh_cong}%`
+    du_doan: prediction.prediction === "T" ? "Tài" : "Xỉu",
+    ty_le_thanh_cong: `${prediction.confidence}%`,
+    giai_thich: prediction.reason,
+    pattern: analyzePatterns(valid)?.description || "Không phát hiện mẫu cụ thể"
   };
 });
 
-fastify.get("/api/taixiu/sunwin/history", async () => rikResults.slice(0, 100));
+fastify.get("/api/taixiu/history", async () => {
+  const valid = rikResults.filter(r => r.d1 && r.d2 && r.d3);
+  if (!valid.length) return { message: "Không có dữ liệu lịch sử." };
+  return valid.map(i => ({
+    session: i.sid,
+    dice: [i.d1, i.d2, i.d3],
+    total: i.d1 + i.d2 + i.d3,
+    result: getTX(i.d1, i.d2, i.d3) === "T" ? "Tài" : "Xỉu"
+  })).map(JSON.stringify).join("\n");
+});
 
-fastify.listen({ port: PORT, host: "0.0.0.0" }, (err, address) => {
-  if (err) {
-    console.error(err);
+const start = async () => {
+  try {
+    const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
+    console.log(`🚀 API chạy tại ${address}`);
+  } catch (err) {
+    console.error("❌ Server error:", err);
     process.exit(1);
   }
-  console.log(`🚀 Server chạy tại ${address}`);
-});
+};
+
+start();

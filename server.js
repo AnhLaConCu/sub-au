@@ -12,52 +12,63 @@ app.use((req, res, next) => {
 
 app.get('/taixiu', async (req, res) => {
   try {
+    // 1. Gọi API với timeout 5s và headers rõ ràng
     const response = await axios.get('https://saobody-lopq.onrender.com/api/taixiu/history', {
+      timeout: 5000,
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'User-Agent': 'TaiXiu-API-Proxy/1.0'
       }
     });
-    
-    // Parse dữ liệu nếu cần (trường hợp API trả về text)
+
+    // 2. Debug: Log raw response để kiểm tra
+    console.log('Raw API response:', {
+      status: response.status,
+      headers: response.headers,
+      data: response.data
+    });
+
+    // 3. Xử lý response data
     let data = response.data;
-    if (typeof data === 'string') {
-      try {
-        data = JSON.parse(data);
-      } catch (parseError) {
-        throw new Error('Failed to parse API response');
-      }
+    
+    // Nếu data không phải array nhưng là object hợp lệ
+    if (!Array.isArray(data) && typeof data === 'object' && data !== null) {
+      data = [data]; // Chuyển thành array
     }
 
-    // Kiểm tra nếu data không phải là mảng
+    // 4. Kiểm tra dữ liệu cuối cùng
     if (!Array.isArray(data)) {
-      // Nếu là object đơn lẻ, chuyển thành mảng 1 phần tử
-      if (typeof data === 'object' && data !== null) {
-        data = [data];
-      } else {
-        throw new Error('API response format is invalid');
-      }
+      throw new Error('Invalid data format from API');
     }
-    
+
+    // 5. Transform data
     const transformedData = data.map(item => ({
-      phien: item.session,
-      xuc_xac_1: item.dice[0],
-      xuc_xac_2: item.dice[1],
-      xuc_xac_3: item.dice[2],
-      Tong: item.total,
-      Ket_qua: item.result,
-      timestamp: item.timestamp // Giữ nguyên timestamp nếu cần
+      phien: item.session || 0,
+      xuc_xac_1: item.dice?.[0] || 0,
+      xuc_xac_2: item.dice?.[1] || 0,
+      xuc_xac_3: item.dice?.[2] || 0,
+      Tong: item.total || 0,
+      Ket_qua: item.result || 'Unknown',
+      thoi_gian: item.timestamp || new Date().toISOString()
     }));
-    
-    res.json(transformedData);
+
+    // 6. Trả về kết quả
+    res.json({
+      success: true,
+      count: transformedData.length,
+      data: transformedData
+    });
+
   } catch (error) {
-    console.error('Error fetching data:', error);
-    res.status(500).json({ 
-      error: 'Internal Server Error',
-      message: error.message
+    console.error('API Error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
 
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`Server ready at http://localhost:${port}/taixiu`);
 });

@@ -1,13 +1,17 @@
 {
   "name": "sub-au",
   "version": "1.0.0",
+  "description": "API Tài Xỉu HITCLUB cập nhật kết quả từ API bên ngoài",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
+  "keywords": ["taixiu", "hitclub", "express", "api"],
+  "author": "your_name",
+  "license": "MIT",
   "dependencies": {
-    "fastify": "^4.22.2",
-    "@fastify/cors": "^8.5.0",
-    "undici": "^6.10.0"
+    "axios": "^1.6.8",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
   }
 }

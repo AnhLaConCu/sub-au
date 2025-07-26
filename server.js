@@ -1,52 +1,63 @@
-const express = require('express');
-const axios = require('axios');
-const app = express();
-const port = process.env.PORT || 3000;
+const Fastify = require("fastify");
+const fetch = require("node-fetch");
+const cors = require("@fastify/cors");
 
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  next();
-});
+const fastify = Fastify();
+fastify.register(cors);
 
-app.get('/taixiu', async (req, res) => {
+// Endpoint trả về JSON đã xử lý
+fastify.get("/taixiu", async (req, reply) => {
   try {
-    const response = await axios.get('https://saobody-lopq.onrender.com/api/taixiu/history', {
-      timeout: 10000,
-      responseType: 'json' // Yêu cầu trả về JSON
-    });
+    const response = await fetch("https://saobody-lopq.onrender.com/api/taixiu/history");
+    const data = await response.json();
 
-    // Kiểm tra và chuẩn hóa dữ liệu
-    let data = response.data;
-    
-    // Sửa lỗi cú pháp: thêm dấu ngoặc đóng
-    if (data && !Array.isArray(data)) {
-      data = [data]; // Chuyển object thành array
+    if (!Array.isArray(data) || data.length === 0) {
+      return {
+        status: "success",
+        data: [
+          {
+            phien: 0,
+            xuc_xac_1: 0,
+            xuc_xac_2: 0,
+            xuc_xac_3: 0,
+            Tong: 0,
+            Ket_qua: "Unknown"
+          }
+        ]
+      };
     }
 
-    // Xử lý dữ liệu
-    const transformedData = data.map(item => ({
-      phien: item.session || 0,
-      xuc_xac_1: item.dice?.[0] || 0,
-      xuc_xac_2: item.dice?.[1] || 0,
-      xuc_xac_3: item.dice?.[2] || 0,
-      Tong: item.total || 0,
-      Ket_qua: item.result || 'Unknown'
+    const result = data.map((item) => ({
+      phien: item.session,
+      xuc_xac_1: item.dice[0],
+      xuc_xac_2: item.dice[1],
+      xuc_xac_3: item.dice[2],
+      Tong: item.total,
+      Ket_qua: item.result
     }));
 
-    res.json({
-      status: 'success',
-      data: transformedData
-    });
-
+    return {
+      status: "success",
+      data: result
+    };
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: error.message
+    console.error("Lỗi fetch:", error);
+    reply.status(500).send({
+      status: "error",
+      message: "Không lấy được dữ liệu từ API nguồn"
     });
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+// Khởi động server
+const start = async () => {
+  try {
+    await fastify.listen({ port: process.env.PORT || 3000, host: "0.0.0.0" });
+    console.log("Server running...");
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
+  }
+};
+
+start();

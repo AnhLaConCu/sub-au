@@ -1,14 +1,12 @@
+
 {
   "name": "sub-au",
   "version": "1.0.0",
-  "description": "API Tài Xỉu HITCLUB cập nhật kết quả từ API bên ngoài",
+  "description": "Server API HITCLUB Tài Xỉu",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "keywords": ["taixiu", "hitclub", "express", "api"],
-  "author": "your_name",
-  "license": "MIT",
   "dependencies": {
     "axios": "^1.6.8",
     "cors": "^2.8.5",

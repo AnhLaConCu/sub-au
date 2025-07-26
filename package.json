@@ -1,14 +1,13 @@
 {
   "name": "sub-au",
   "version": "1.0.0",
-  "description": "API fetch Tài Xỉu và trả về định dạng gọn",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "@fastify/cors": "^8.0.0",
-    "fastify": "^4.0.0",
-    "node-fetch": "^2.6.7"
+    "fastify": "^4.22.2",
+    "@fastify/cors": "^8.5.0",
+    "undici": "^6.10.0"
   }
 }
